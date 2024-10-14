@@ -1,3 +1,5 @@
+# Not finished, it works but some things need to be reviewed and it needs to be made more intuitive to use
+
 import torch.utils.data
 import torchvision
 import argparse
