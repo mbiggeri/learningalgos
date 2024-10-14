@@ -121,21 +121,21 @@ def objective(trial):
     opt_params['eps_max'] = trial.suggest_float('eps_max', opt_params['eps_min'], 3.0, step=0.2)
     opt_params['gamma_max'] = trial.suggest_float('gamma_max', opt_params['gamma_min'], 3.0, step=0.2)
 
-    # Dopo aver suggerito 'optimizer', suggeriamo 'momentum' se 'optimizer' è 'sgd'
-    if opt_params['optimizer'] == 'sgd':
-        opt_params['momentum'] = 0.9
-        # opt_params['momentum'] = trial.suggest_float('momentum', 0.0, 0.9)
-    else:
-        opt_params['momentum'] = 0.0  # Impostiamo 'momentum' a 0.0 se non usiamo SGD
     ######################################################
 
     # Unisci i due dizionari
     params = {**fixed_params, **opt_params}
 
+    # In base al tipo di optimizer impostiamo il parametro 'momentum'
+    if params['optimizer'] == 'sgd':
+        params['momentum'] = 0.9
+        # opt_params['momentum'] = trial.suggest_float('momentum', 0.0, 0.9)
+    else:
+        params['momentum'] = 0.0  # Impostiamo 'momentum' a 0.0 se non usiamo SGD
+      
     #------------------------------------------------------
     # TODO: Aggiungi possibilità di ottimizzare o meno lrs:
     #------------------------------------------------------
-    
     
     # Gestione di lrs per ogni layer
     archi = params['architecture']
@@ -218,8 +218,8 @@ def objective(trial):
     return test_acc
 
 # Esecuzione dello studio Optuna
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=250, n_jobs=4)
+study = optuna.create_study(direction='maximize', pruner=optuna.pruners.HyperbandPruner)
+study.optimize(objective, n_trials=100, n_jobs=4)
 
 # Mostra i 5 migliori set di iperparametri trovati
 print('\nTop 5 Best Trials:')
