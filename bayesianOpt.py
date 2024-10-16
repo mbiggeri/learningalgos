@@ -1,5 +1,7 @@
 # Not finished, it works but some things need to be reviewed and it needs to be made more intuitive to use
 
+import json
+import threading
 import torch.utils.data
 import torchvision
 import argparse
@@ -8,7 +10,7 @@ from models import (make_pools, P_MLP, VF_MLP, P_CNN, VF_CNN, RON,
                     my_init, my_sigmoid, my_hard_sig, ctrd_hard_sig, hard_sigmoid, train_epoch, evaluate)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_root', type=str, default='path/to/datasets')	# folder where the datasets will be downloaded
+parser.add_argument('--data_root', type=str, default='/Users/michaelbiggeri/Desktop/Tesi/Codice/datasets')	# folder where the datasets will be downloaded
 parser.add_argument('--model', type=str, default='MLP', metavar='m', help='model', choices=['MLP', 'VFMLP', 'CNN', 'VFCNN', 'RON'])
 parser.add_argument('--task', type=str, default='MNIST', metavar='t', help='task', choices=['MNIST', 'CIFAR10'])
 
@@ -40,7 +42,7 @@ parser.add_argument('--use_test', action='store_true', help='evaluate on test se
 parser.add_argument('--learn_oscillators', action='store_true')
 
 # Script di utilizzo: python bayesianOpt.py \ --data_root "/percorso/ai/tuoi/dataset" \ --epochs (number) \ --model (model) \ --task (task)
-# esempio: "python bayesianOpt.py --model RON --task MNIST --epochs 2"
+# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 5"
 
 
 args = parser.parse_args()
@@ -74,18 +76,16 @@ elif args.task == 'CIFAR10':
 
 def objective(trial):
     # Definiamo due dizionari, uno con gli iperparametri fissati e l'altro con gli iperparametri da ottimizzare, poi uniamo i dizionari.
-    
     ######################################################
     # Dizionario degli iperparametri fissi
     fixed_params = {
-        'architecture': [784, 512, 10],
-        # 'optimizer': 'sgd',
-        'lrs': [0.01, 0.01],  # Due valori per due layer
-        'momentum': 0.9,
+        'architecture': [3072, 512, 512, 10],
+        'optimizer': 'sgd',
+        'lrs': [0.01, 0.01, 0.01],  # Due valori per due layer
         'activation': 'my_hard_sig',
-        'T1': 20,
-        'T2': 5,
-        'batch_size': 64,  # mbs
+        'T1': 100,
+        'T2': 20,
+        'batch_size': 128,  # mbs
         'alg': 'EP',
         'betas': (0.0, 0.5),
         'loss': 'mse',
@@ -101,7 +101,7 @@ def objective(trial):
     # Dizionario degli iperparametri da ottimizzare
     opt_params = {
         # 'architecture': trial.suggest_categorical('architecture', [[784, 512, 10], [784, 256, 10]]),
-        'optimizer': trial.suggest_categorical('optimizer', ['sgd', 'adam']),
+        # 'optimizer': trial.suggest_categorical('optimizer', ['sgd', 'adam']),
         # 'activation': trial.suggest_categorical('activation', ['my_hard_sig', 'mysig', 'sigmoid', 'tanh']),
         # 'T1': trial.suggest_int('T1', 20, 50, step=5),
         # 'T2': trial.suggest_int('T2', 5, 25, step=2),
@@ -118,24 +118,24 @@ def objective(trial):
     }
 
     # Devono essere inizializzati dopo eps_min e gamma_min se li vogliamo usare come parametri
-    opt_params['eps_max'] = trial.suggest_float('eps_max', opt_params['eps_min'], 3.0, step=0.2)
-    opt_params['gamma_max'] = trial.suggest_float('gamma_max', opt_params['gamma_min'], 3.0, step=0.2)
-
-    ######################################################
+    opt_params['eps_max'] = trial.suggest_float('eps_max', opt_params['eps_min'], 3.0, step=0.1)
+    opt_params['gamma_max'] = trial.suggest_float('gamma_max', opt_params['gamma_min'], 3.0, step=0.1)
 
     # Unisci i due dizionari
     params = {**fixed_params, **opt_params}
-
-    # In base al tipo di optimizer impostiamo il parametro 'momentum'
+    
+    # Dopo aver suggerito 'optimizer', suggeriamo 'momentum' se 'optimizer' è 'sgd'
     if params['optimizer'] == 'sgd':
         params['momentum'] = 0.9
         # opt_params['momentum'] = trial.suggest_float('momentum', 0.0, 0.9)
     else:
         params['momentum'] = 0.0  # Impostiamo 'momentum' a 0.0 se non usiamo SGD
-      
+    ######################################################
+
     #------------------------------------------------------
     # TODO: Aggiungi possibilità di ottimizzare o meno lrs:
     #------------------------------------------------------
+    
     
     # Gestione di lrs per ogni layer
     archi = params['architecture']
@@ -204,22 +204,37 @@ def objective(trial):
     for epoch in range(args.epochs):
         train_epoch(model, optimizer, epoch, train_loader, params['T1'], params['T2'], params['betas'], device,
                 criterion, params['alg'], random_sign=args.random_sign, thirdphase=args.thirdphase, cep_debug=args.cep_debug,
-                ron=(args.model == 'RON'))
+                ron=(args.model == 'RON'), id=trial.number)
 
-        if scheduler is not None:  # learning rate decay step
+        # Learning rate decay step
+        if scheduler is not None:
             if epoch < scheduler.T_max:
                 scheduler.step()
 
-        test_acc = evaluate(model, valid_loader, params['T1'], device, ron=(args.model == 'RON'))
-        print('\nTest accuracy :', round(test_acc, 2))
+        test_acc = evaluate(model, valid_loader, params['T1'], device, ron=(args.model == 'RON')) 
+        print('Trial ', trial.id, '\nTest accuracy :', round(test_acc, 2))
+        
+        # Report intermedi a Optuna
+        trial.report(test_acc, epoch)
+        
+        # Interrompi il trial se Hyperband decide di prunare
+        if trial.should_prune():
+            raise optuna.TrialPruned()
 
     # Validazione
     training_acc = evaluate(model, train_loader, params['T1'], device, ron=(args.model == 'RON'))
     return test_acc
 
+# Definizione di un pruner Hyperband
+pruner = optuna.pruners.HyperbandPruner(
+    min_resource=1,        # Minimo numero di epoche
+    max_resource=5,        # Massimo numero di epoche
+    reduction_factor=3     # Fattore di riduzione (si tagliano 1/3 dei rami)
+)
+
 # Esecuzione dello studio Optuna
-study = optuna.create_study(direction='maximize', pruner=optuna.pruners.HyperbandPruner)
-study.optimize(objective, n_trials=100, n_jobs=4)
+study = optuna.create_study(direction='maximize', pruner=pruner)
+study.optimize(objective, n_trials=60, n_jobs=-1)    # n_jobs=-1 utilizza tutti i core disponibili
 
 # Mostra i 5 migliori set di iperparametri trovati
 print('\nTop 5 Best Trials:')
@@ -228,3 +243,7 @@ for i, trial in enumerate(top_trials):
     print(f"Rank {i+1}:")
     print(f"  Value: {trial.value}")
     print(f"  Params: {trial.params}")
+    
+# Salvare i risultati su un JSON
+with open('optuna_results.json', 'w') as f:
+    json.dump([t.params for t in study.trials], f)
