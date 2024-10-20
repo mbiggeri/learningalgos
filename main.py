@@ -10,7 +10,7 @@ from models import (make_pools, P_MLP, VF_MLP, P_CNN, VF_CNN, RON,
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_root', type=str, default='/raid/a.cossu/datasets')
+parser.add_argument('--data_root', type=str, default='/home/gibberi/Desktop/Tesi/Datasets')
 parser.add_argument('--model', type=str, default='MLP', metavar='m', help='model', choices=['MLP', 'VFMLP', 'CNN', 'VFCNN', 'RON'])
 parser.add_argument('--task', type=str, default='MNIST', metavar='t', help='task', choices=['MNIST', 'CIFAR10'])
 

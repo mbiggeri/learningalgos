@@ -10,7 +10,7 @@ from models import (make_pools, P_MLP, VF_MLP, P_CNN, VF_CNN, RON,
                     my_init, my_sigmoid, my_hard_sig, ctrd_hard_sig, hard_sigmoid, train_epoch, evaluate)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_root', type=str, default='/Users/michaelbiggeri/Desktop/Tesi/Codice/datasets')	# folder where the datasets will be downloaded
+parser.add_argument('--data_root', type=str, default='/home/gibberi/Desktop/Tesi/Datasets')	# folder where the datasets will be downloaded
 parser.add_argument('--model', type=str, default='MLP', metavar='m', help='model', choices=['MLP', 'VFMLP', 'CNN', 'VFCNN', 'RON'])
 parser.add_argument('--task', type=str, default='MNIST', metavar='t', help='task', choices=['MNIST', 'CIFAR10'])
 
@@ -42,7 +42,7 @@ parser.add_argument('--use_test', action='store_true', help='evaluate on test se
 parser.add_argument('--learn_oscillators', action='store_true')
 
 # Script di utilizzo: python bayesianOpt.py \ --data_root "/percorso/ai/tuoi/dataset" \ --epochs (number) \ --model (model) \ --task (task)
-# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 5"
+# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 2 --learn_oscillators"
 
 
 args = parser.parse_args()
@@ -83,8 +83,8 @@ def objective(trial):
         'optimizer': 'sgd',
         'lrs': [0.01, 0.01, 0.01],  # Due valori per due layer
         'activation': 'my_hard_sig',
-        'T1': 100,
-        'T2': 20,
+        'T1': 15,
+        'T2': 2,
         'batch_size': 128,  # mbs
         'alg': 'EP',
         'betas': (0.0, 0.5),
@@ -95,7 +95,7 @@ def objective(trial):
         # 'eps_max': 2.0,
         # 'gamma_min': 1.0,
         # 'gamma_max': 2.0,
-        # 'tau': 0.1,
+        'tau': 0.7,
     }
 
     # Dizionario degli iperparametri da ottimizzare
@@ -103,23 +103,23 @@ def objective(trial):
         # 'architecture': trial.suggest_categorical('architecture', [[784, 512, 10], [784, 256, 10]]),
         # 'optimizer': trial.suggest_categorical('optimizer', ['sgd', 'adam']),
         # 'activation': trial.suggest_categorical('activation', ['my_hard_sig', 'mysig', 'sigmoid', 'tanh']),
-        # 'T1': trial.suggest_int('T1', 20, 50, step=5),
-        # 'T2': trial.suggest_int('T2', 5, 25, step=2),
+        # 'T1': trial.suggest_int('T1', 180, 280, step=20),
+        # 'T2': trial.suggest_int('T2', 25, 50, step=3),
         # 'batch_size': trial.suggest_categorical('batch_size', [32, 64, 128, 256]),
         # 'alg': trial.suggest_categorical('alg', ['EP', 'BPTT', 'CEP']),
         # 'betas': (0.0, trial.suggest_float('beta2', 0.0, 1.0, step=0.1)),
         # 'loss': trial.suggest_categorical('loss', ['mse', 'cel'])
 
         #---RON---
-        'eps_min': trial.suggest_float('eps_min', 0.1, 2.0, step=0.2),
-        'gamma_min': trial.suggest_float('gamma_min', 0.1, 2.0, step=0.2),
+        'eps_min': trial.suggest_float('eps_min', 0.2, 1.6, step=0.2),
+        'gamma_min': trial.suggest_float('gamma_min', 0.2, 3.0, step=0.2),
         
-        'tau': trial.suggest_float('tau', 0.1, 1.0, step=0.1),
+        # 'tau': trial.suggest_float('tau', 0.5, 1.0, step=0.1),
     }
 
     # Devono essere inizializzati dopo eps_min e gamma_min se li vogliamo usare come parametri
-    opt_params['eps_max'] = trial.suggest_float('eps_max', opt_params['eps_min'], 3.0, step=0.1)
-    opt_params['gamma_max'] = trial.suggest_float('gamma_max', opt_params['gamma_min'], 3.0, step=0.1)
+    opt_params['eps_max'] = trial.suggest_float('eps_max', opt_params['eps_min']+0.4, 2.8, step=0.2)
+    opt_params['gamma_max'] = trial.suggest_float('gamma_max', opt_params['gamma_min']+0.4, 4.0, step=0.2)
 
     # Unisci i due dizionari
     params = {**fixed_params, **opt_params}
@@ -212,7 +212,7 @@ def objective(trial):
                 scheduler.step()
 
         test_acc = evaluate(model, valid_loader, params['T1'], device, ron=(args.model == 'RON')) 
-        print('Trial ', trial.id, '\nTest accuracy :', round(test_acc, 2))
+        print('Trial ', trial.number, 'Test accuracy :', round(test_acc, 2))
         
         # Report intermedi a Optuna
         trial.report(test_acc, epoch)
@@ -228,13 +228,13 @@ def objective(trial):
 # Definizione di un pruner Hyperband
 pruner = optuna.pruners.HyperbandPruner(
     min_resource=1,        # Minimo numero di epoche
-    max_resource=5,        # Massimo numero di epoche
+    max_resource=args.epochs,        # Massimo numero di epoche
     reduction_factor=3     # Fattore di riduzione (si tagliano 1/3 dei rami)
 )
 
 # Esecuzione dello studio Optuna
 study = optuna.create_study(direction='maximize', pruner=pruner)
-study.optimize(objective, n_trials=60, n_jobs=-1)    # n_jobs=-1 utilizza tutti i core disponibili
+study.optimize(objective, n_trials=50, n_jobs=-1)    # n_jobs=-1 utilizza tutti i core disponibili
 
 # Mostra i 5 migliori set di iperparametri trovati
 print('\nTop 5 Best Trials:')
@@ -244,6 +244,6 @@ for i, trial in enumerate(top_trials):
     print(f"  Value: {trial.value}")
     print(f"  Params: {trial.params}")
     
-# Salvare i risultati su un JSON
+# Salvare i risultati su un JSON (in ordine di risultati ottenuti)
 with open('optuna_results.json', 'w') as f:
-    json.dump([t.params for t in study.trials], f)
+    json.dump([t.params for t in sorted(study.trials, key=lambda t: t.value, reverse=True)], f, sort_keys=True, indent=4)

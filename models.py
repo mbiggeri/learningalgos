@@ -154,7 +154,7 @@ class P_MLP(torch.nn.Module):
 
 
 class RON(torch.nn.Module):
-    def __init__(self, archi, device, activation=torch.tanh, tau=1, epsilon_min=0, epsilon_max=1, gamma_min=0, gamma_max=1, learn_oscillators=False):
+    def __init__(self, archi, device, activation=torch.tanh, tau=1, epsilon_min=0, epsilon_max=1, gamma_min=0, gamma_max=1, learn_oscillators=True):
         super(RON, self).__init__()
 
         self.activation = activation
@@ -165,6 +165,7 @@ class RON(torch.nn.Module):
         self.gamma_min = gamma_min
         self.gamma_max = gamma_max
         self.tau = tau
+        print("learn oscillator = ", learn_oscillators)
         self.learn_oscillators = learn_oscillators
         self.device = device
 
@@ -847,7 +848,7 @@ class VF_CNN(torch.nn.Module):
 
 
 def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, device, criterion, alg='EP',
-          random_sign=False, thirdphase=False, cep_debug=False, ron=False):
+          random_sign=False, thirdphase=False, cep_debug=False, ron=False, id=None):
     mbs = train_loader.batch_size
     iter_per_epochs = math.ceil(len(train_loader.dataset) / mbs)
     beta_1, beta_2 = betas
@@ -994,7 +995,12 @@ def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, dev
             optimizer.step()
         if ((idx % (iter_per_epochs // 10) == 0) or (idx == iter_per_epochs - 1)):
             run_acc = run_correct / run_total
-            print('Epoch :', round(epoch_number + (idx / iter_per_epochs), 2),
+            if (id != None):
+                # print("Trial ", id, '-> Epoch :', round(epoch_number + (idx / iter_per_epochs), 2),
+                #   '\tRun train acc :', round(run_acc, 3), '\t(' + str(run_correct) + '/' + str(run_total) + ')')
+                pass
+            else:
+                print('Epoch :', round(epoch_number + (idx / iter_per_epochs), 2),
                   '\tRun train acc :', round(run_acc, 3), '\t(' + str(run_correct) + '/' + str(run_total) + ')')
 
 
