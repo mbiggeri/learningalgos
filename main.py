@@ -56,6 +56,11 @@ parser.add_argument('--gamma_max', type=float, default=2.0)
 parser.add_argument('--tau', type=float, default=0.1)
 parser.add_argument('--learn_oscillators', action='store_true')
 
+parser.add_argument('--weight-decay', type=float, default=0.0, metavar='wd',
+                    help='Weight decay (L2 regularization) factor (default: 0.0)')
+parser.add_argument('--use-weight-decay', default=False, action='store_true',
+                    help='Enable L2 regularization (default: False)')
+
 
 args = parser.parse_args()
 
@@ -202,9 +207,14 @@ if hasattr(model, 'B_syn'):
                                  'weight_decay': args.wds[idx + 1]})
 
 if args.optim == 'sgd':
-    optimizer = torch.optim.SGD(optim_params, momentum=args.mmt)
+    optimizer = torch.optim.SGD(
+        optim_params, 
+        momentum=args.mmt,
+        weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
 elif args.optim == 'adam':
-    optimizer = torch.optim.Adam(optim_params)
+    optimizer = torch.optim.Adam(
+        optim_params,
+        weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
 
 # Constructing the scheduler
 if args.lr_decay:

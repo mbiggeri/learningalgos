@@ -39,10 +39,15 @@ parser.add_argument('--same-update', default=False, action='store_true',
 parser.add_argument('--cep-debug', default=False, action='store_true', help='debug cep')
 parser.add_argument('--use_test', action='store_true', help='evaluate on test set instead of validation')
 
+# For hcoRON:
 parser.add_argument('--learn_oscillators', action='store_true')
 
+# For L2 weight decay:
+parser.add_argument('--use-weight-decay', default=False, action='store_true',
+                    help='Enable L2 regularization (default: False)')
+
 # Script di utilizzo: python bayesianOpt.py \ --data_root "/percorso/ai/tuoi/dataset" \ --epochs (number) \ --model (model) \ --task (task)
-# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 2 --learn_oscillators"
+# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 2 --learn_oscillators --use-weight-decay --weight-decay 0.001"
 
 
 args = parser.parse_args()
@@ -124,6 +129,12 @@ def objective(trial):
     # Unisci i due dizionari
     params = {**fixed_params, **opt_params}
     
+    # Regolarizzazione L2:
+    if args.use_weight_decay:
+        params['weight_decay'] = trial.suggest_float('weight_decay', 1e-6, 1e-2, log=True)
+    else:
+        params['weight_decay'] = 0.0
+    
     # Dopo aver suggerito 'optimizer', suggeriamo 'momentum' se 'optimizer' è 'sgd'
     if params['optimizer'] == 'sgd':
         params['momentum'] = 0.9
@@ -183,9 +194,14 @@ def objective(trial):
         optim_params.append({'params': synapse.parameters(), 'lr': params['lrs'][idx]})
 
     if params['optimizer'] == 'sgd':
-        optimizer = torch.optim.SGD(optim_params, momentum=params['momentum'])
+        optimizer = torch.optim.SGD(
+            optim_params, 
+            momentum=params['momentum'],
+            weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
     elif params['optimizer'] == 'adam':
-        optimizer = torch.optim.Adam(optim_params)
+        optimizer = torch.optim.Adam(
+            optim_params,
+            weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
 
     # Selezione della loss function
     if params['loss'] == 'mse':
