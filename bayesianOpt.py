@@ -47,7 +47,7 @@ parser.add_argument('--use-weight-decay', default=False, action='store_true',
                     help='Enable L2 regularization (default: False)')
 
 # Script di utilizzo: python bayesianOpt.py \ --data_root "/percorso/ai/tuoi/dataset" \ --epochs (number) \ --model (model) \ --task (task)
-# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 2 --learn_oscillators --use-weight-decay --weight-decay 0.001"
+# esempio: "python bayesianOpt.py --model RON --task CIFAR10 --epochs 7 --use-weight-decay"
 
 
 args = parser.parse_args()
@@ -85,12 +85,12 @@ def objective(trial):
     # Dizionario degli iperparametri fissi
     fixed_params = {
         'architecture': [3072, 512, 512, 10],
-        'optimizer': 'sgd',
+        'optimizer': 'adam',
         'lrs': [0.01, 0.01, 0.01],  # Due valori per due layer
         'activation': 'my_hard_sig',
-        'T1': 15,
-        'T2': 2,
-        'batch_size': 128,  # mbs
+        # 'T1': 15,
+        # 'T2': 2,
+        'batch_size': 256,  # mbs
         'alg': 'EP',
         'betas': (0.0, 0.5),
         'loss': 'mse',
@@ -100,7 +100,7 @@ def objective(trial):
         # 'eps_max': 2.0,
         # 'gamma_min': 1.0,
         # 'gamma_max': 2.0,
-        'tau': 0.7,
+        'tau': 0.8,
     }
 
     # Dizionario degli iperparametri da ottimizzare
@@ -108,8 +108,8 @@ def objective(trial):
         # 'architecture': trial.suggest_categorical('architecture', [[784, 512, 10], [784, 256, 10]]),
         # 'optimizer': trial.suggest_categorical('optimizer', ['sgd', 'adam']),
         # 'activation': trial.suggest_categorical('activation', ['my_hard_sig', 'mysig', 'sigmoid', 'tanh']),
-        # 'T1': trial.suggest_int('T1', 180, 280, step=20),
-        # 'T2': trial.suggest_int('T2', 25, 50, step=3),
+        'T1': trial.suggest_int('T1', 200, 400, step=20),
+        'T2': trial.suggest_int('T2', 5, 80, step=5),
         # 'batch_size': trial.suggest_categorical('batch_size', [32, 64, 128, 256]),
         # 'alg': trial.suggest_categorical('alg', ['EP', 'BPTT', 'CEP']),
         # 'betas': (0.0, trial.suggest_float('beta2', 0.0, 1.0, step=0.1)),
@@ -197,11 +197,11 @@ def objective(trial):
         optimizer = torch.optim.SGD(
             optim_params, 
             momentum=params['momentum'],
-            weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
+            weight_decay=params['weight_decay'] if args.use_weight_decay else 0.0)
     elif params['optimizer'] == 'adam':
         optimizer = torch.optim.Adam(
             optim_params,
-            weight_decay=args.weight_decay if args.use_weight_decay else 0.0)
+            weight_decay=params['weight_decay'] if args.use_weight_decay else 0.0)
 
     # Selezione della loss function
     if params['loss'] == 'mse':
@@ -250,7 +250,7 @@ pruner = optuna.pruners.HyperbandPruner(
 
 # Esecuzione dello studio Optuna
 study = optuna.create_study(direction='maximize', pruner=pruner)
-study.optimize(objective, n_trials=50, n_jobs=-1)    # n_jobs=-1 utilizza tutti i core disponibili
+study.optimize(objective, n_trials=100, n_jobs=-1)    # n_jobs=-1 utilizza tutti i core disponibili
 
 # Mostra i 5 migliori set di iperparametri trovati
 print('\nTop 5 Best Trials:')
