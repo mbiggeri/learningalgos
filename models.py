@@ -8,6 +8,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import math
+import matplotlib.pyplot as plt
 
 def my_sigmoid(x):
     return 1 / (1 + torch.exp(-4 * (x - 0.5)))
@@ -867,6 +868,9 @@ def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, dev
     run_correct = 0
     run_total = 0
     model.train()
+    
+    # Array per memorizzare le norme:
+    hidden_layer_norms = []
 
     for idx, (x, y) in enumerate(train_loader):
         x, y = x.to(device), y.to(device)
@@ -947,6 +951,11 @@ def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, dev
                 model.compute_syn_grads(x, y, neurons_1, neurons_2, betas, criterion)
 
             optimizer.step()
+            
+            # Calcola la norma degli hidden layer e salvala
+            if hasattr(model, 'synapses'):  # Verifica che il modello abbia attributi synapses
+                layer_norms = [torch.norm(layer.weight).item() for layer in model.synapses if hasattr(layer, 'weight')]
+                hidden_layer_norms.append(layer_norms)
 
         elif alg == 'CEP':
             if random_sign and (beta_1 == 0.0):
@@ -1004,6 +1013,8 @@ def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, dev
             # Backpropagation through time
             loss.backward()
             optimizer.step()
+            
+        # Updates every 10% of iterations: 
         if ((idx % (iter_per_epochs // 10) == 0) or (idx == iter_per_epochs - 1)):
             run_acc = run_correct / run_total
             if (id != None):
@@ -1014,6 +1025,7 @@ def train_epoch(model, optimizer, epoch_number, train_loader, T1, T2, betas, dev
                 print('Epoch :', round(epoch_number + (idx / iter_per_epochs), 2),
                   '\tRun train acc :', round(run_acc, 3), '\t(' + str(run_correct) + '/' + str(run_total) + ')')
 
+    return hidden_layer_norms
 
 def evaluate(model, loader, T, device, ron=False):
     # Evaluate the model on a dataloader with T steps for the dynamics

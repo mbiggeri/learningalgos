@@ -10,7 +10,7 @@ from models import (make_pools, P_MLP, VF_MLP, P_CNN, VF_CNN, RON,
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_root', type=str, default='/home/gibberi/Desktop/Tesi/Datasets')
+parser.add_argument('--data_root', type=str, default='/Users/michaelbiggeri/Desktop/Tesi/Codice/datasets')
 parser.add_argument('--model', type=str, default='MLP', metavar='m', help='model', choices=['MLP', 'VFMLP', 'CNN', 'VFCNN', 'RON'])
 parser.add_argument('--task', type=str, default='MNIST', metavar='t', help='task', choices=['MNIST', 'CIFAR10'])
 
@@ -229,20 +229,37 @@ print(optimizer)
 print('\ntraining algorithm : ', args.alg, '\n')
 
 eval_loader = test_loader if args.use_test else valid_loader
+if __name__ == "__main__":
+    for epoch in range(args.epochs):
+        # hidden_layer_norms != [] solo se non usiamo EP
+        hidden_layer_norms = train_epoch(model, optimizer, epoch, train_loader, args.T1, args.T2, betas, device,
+                    criterion, alg=args.alg, random_sign=args.random_sign, thirdphase=args.thirdphase, cep_debug=args.cep_debug,
+                    ron=(args.model == 'RON'))
 
-for epoch in range(args.epochs):
-    train_epoch(model, optimizer, epoch, train_loader, args.T1, args.T2, betas, device,
-                criterion, alg=args.alg, random_sign=args.random_sign, thirdphase=args.thirdphase, cep_debug=args.cep_debug,
-                ron=(args.model == 'RON'))
+        if scheduler is not None:  # learning rate decay step
+            if epoch < scheduler.T_max:
+                scheduler.step()
 
-    if scheduler is not None:  # learning rate decay step
-        if epoch < scheduler.T_max:
-            scheduler.step()
+        test_acc = evaluate(model, eval_loader, args.T1, device, ron=(args.model == 'RON'))
+        print('\nTest accuracy :', round(test_acc, 2))
+        
+        # Plot della norma degli hidden layers:
+        # Trasponi i dati per separare le norme di ciascun layer
+        hidden_layer_norms = list(zip(*hidden_layer_norms))
 
+        # Plot delle norme
+        import matplotlib.pyplot as plt
+
+        for idx, norms in enumerate(hidden_layer_norms):
+            plt.plot(norms, label=f'Layer {idx + 1}')
+
+        plt.xlabel('Iterazioni')
+        plt.ylabel('Norma')
+        plt.title('Norme degli Hidden Layer durante l\'addestramento')
+        plt.legend()
+        plt.show()
+
+    training_acc = evaluate(model, train_loader, args.T1, device, ron=(args.model == 'RON'))
+    print('\nTrain accuracy :', round(training_acc, 2))
     test_acc = evaluate(model, eval_loader, args.T1, device, ron=(args.model == 'RON'))
     print('\nTest accuracy :', round(test_acc, 2))
-
-training_acc = evaluate(model, train_loader, args.T1, device, ron=(args.model == 'RON'))
-print('\nTrain accuracy :', round(training_acc, 2))
-test_acc = evaluate(model, eval_loader, args.T1, device, ron=(args.model == 'RON'))
-print('\nTest accuracy :', round(test_acc, 2))
