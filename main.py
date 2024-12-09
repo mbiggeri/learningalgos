@@ -61,8 +61,6 @@ parser.add_argument('--weight-decay', type=float, default=0.0, metavar='wd',
 parser.add_argument('--use-weight-decay', default=False, action='store_true',
                     help='Enable L2 regularization (default: False)')
 
-parser.add_argument('--dropout', type=float, default=0.0, metavar='wd', help='enabling data augmentation for cifar10')
-
 
 args = parser.parse_args()
 
@@ -150,7 +148,7 @@ elif args.model == 'VFMLP':
     model = VF_MLP(args.archi, activation=activation)
 elif args.model == 'RON':
     model = RON(args.archi, device=device, activation=activation, epsilon_min=args.eps_min, epsilon_max=args.eps_max,
-                gamma_max=args.gamma_max, gamma_min=args.gamma_min, tau=args.tau, learn_oscillators=args.learn_oscillators, dropout_rate=args.dropout)
+                gamma_max=args.gamma_max, gamma_min=args.gamma_min, tau=args.tau, learn_oscillators=args.learn_oscillators)
 elif args.model.find('CNN') != -1:
 
     if args.task == 'MNIST':
