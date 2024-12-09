@@ -155,7 +155,7 @@ class P_MLP(torch.nn.Module):
 
 
 class RON(torch.nn.Module):
-    def __init__(self, archi, device, activation=torch.tanh, tau=1, epsilon_min=0, epsilon_max=1, gamma_min=0, gamma_max=1, learn_oscillators=True, dropout_rate=0):
+    def __init__(self, archi, device, activation=torch.tanh, tau=1, epsilon_min=0, epsilon_max=1, gamma_min=0, gamma_max=1, learn_oscillators=True):
         super(RON, self).__init__()
 
         self.activation = activation
@@ -169,7 +169,6 @@ class RON(torch.nn.Module):
         print("learn oscillator = ", learn_oscillators)
         self.learn_oscillators = learn_oscillators
         self.device = device
-        self.dropout_rate = dropout_rate
 
         self.gamma = torch.rand(archi[1], device=device) * (gamma_max - gamma_min) + gamma_min
         self.epsilon = torch.rand(archi[1], device=device) * (epsilon_max - epsilon_min) + epsilon_min
@@ -252,11 +251,6 @@ class RON(torch.nn.Module):
                 neuronsz[idx] = (self.activation(grads[idx]) * self.tau + oscillator).detach()
                 neuronsz[idx].requires_grad = True
 
-                # Applica dropout solo in modalità training
-                if self.training and self.dropout_rate > 0:
-                    neuronsz[idx] = torch.nn.functional.dropout(neuronsz[idx], p=self.dropout_rate, training=self.training)
-
-
             if not_mse:
                 neuronsy[-1] = grads[-1]
             else:
@@ -273,10 +267,6 @@ class RON(torch.nn.Module):
             for idx in range(len(neuronsy) - 1):
                 neuronsy[idx] = grads[idx]
                 neuronsy[idx].requires_grad = True
-
-                # Applica dropout solo in modalità training
-                if self.training and self.dropout_rate > 0:
-                    neuronsy[idx] = torch.nn.functional.dropout(neuronsy[idx], p=self.dropout_rate, training=self.training)
 
         return neuronsz, neuronsy
 
